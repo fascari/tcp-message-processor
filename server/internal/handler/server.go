@@ -8,6 +8,8 @@ import (
 	"tcp-message-processor/internal/session"
 )
 
+//go:generate mockery --all
+
 type (
 	Server struct {
 		sessions    *session.Store
