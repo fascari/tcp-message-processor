@@ -72,12 +72,13 @@ func (s *Server) submit(ctx context.Context, conn net.Conn, msg tcp.Message, use
 		return
 	}
 
-	if !sess.ValidateJobNonce(params.jobID, sess.CurrentNonce) {
+	currentNonce := sess.CurrentNonce()
+	if !sess.ValidateJobNonce(params.jobID, currentNonce) {
 		s.sendError(conn, *msg.ID, apperrors.ErrTaskNotExist.Error())
 		return
 	}
 
-	expectedResult := hash.SHA256(sess.CurrentNonce + params.clientNonce)
+	expectedResult := hash.SHA256(currentNonce + params.clientNonce)
 	if params.result != expectedResult {
 		logger.Warn("invalid result",
 			zap.String("username", username),
