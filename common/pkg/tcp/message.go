@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"encoding/json"
 	"net"
+
+	"tcp-message-processor/common/pkg/method"
 )
 
 type (
@@ -55,4 +57,8 @@ func NewErrorResponse(id int64, errMsg string) *Message {
 		Result: false,
 		Error:  errMsg,
 	}
+}
+
+func (m Message) IsJob() bool {
+	return m.Method == method.Job.String()
 }
