@@ -11,7 +11,6 @@ import (
 	"tcp-message-processor-client/internal/transport"
 	"tcp-message-processor/common/pkg/closer"
 	"tcp-message-processor/common/pkg/logger"
-	"tcp-message-processor/common/pkg/method"
 	"tcp-message-processor/common/pkg/tcp"
 
 	"go.uber.org/zap"
@@ -66,7 +65,7 @@ func (c *Client) handleMessages(ctx context.Context) error {
 			return fmt.Errorf("failed to read message: %w", err)
 		}
 
-		if msg.Method == string(method.Job) {
+		if msg.IsJob() {
 			c.handleJob(msg)
 		}
 	}

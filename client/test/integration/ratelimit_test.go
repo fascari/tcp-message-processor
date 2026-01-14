@@ -12,6 +12,7 @@ import (
 	"tcp-message-processor/common/pkg/hash"
 	"tcp-message-processor/common/pkg/integration"
 	"tcp-message-processor/common/pkg/tcp"
+	apperrors "tcp-message-processor/pkg/errors"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -51,8 +52,8 @@ func (s *RateLimitSuite) TestRateLimiting() {
 	accepted, rejected := s.attemptSubmissions(conn, jobID, serverNonce)
 
 	s.T().Logf("Results: %d accepted, %d rejected", accepted, rejected)
-	s.Greater(rejected, 0, "rate limit should reject at least one submission")
-	s.LessOrEqual(accepted, 2, "rate limit should allow max 2 submissions in ~1 second")
+	s.Greater(rejected, 0)
+	s.LessOrEqual(accepted, 2)
 }
 
 func (s *RateLimitSuite) authenticate(conn transport.Connection, username string) {
@@ -67,7 +68,7 @@ func (s *RateLimitSuite) authenticate(conn transport.Connection, username string
 func (s *RateLimitSuite) waitForJob(conn transport.Connection) (int64, string) {
 	msg, err := conn.Read()
 	s.Require().NoError(err)
-	s.Require().Equal("job", msg.Method)
+	s.Require().True(msg.IsJob())
 
 	jobID := int64(msg.Params["job_id"].(float64))
 	serverNonce := msg.Params["server_nonce"].(string)
@@ -75,27 +76,46 @@ func (s *RateLimitSuite) waitForJob(conn transport.Connection) (int64, string) {
 	return jobID, serverNonce
 }
 
+func (s *RateLimitSuite) readResponse(conn transport.Connection) tcp.Message {
+	for {
+		resp, err := conn.Read()
+		s.Require().NoError(err)
+
+		if resp.IsJob() {
+			continue
+		}
+
+		return resp
+	}
+}
+
 func (s *RateLimitSuite) attemptSubmissions(conn transport.Connection, jobID int64, serverNonce string) (int, int) {
 	accepted := 0
 	rejected := 0
 
-	s.T().Log("Attempting 5 rapid submissions (200ms interval = 5/second)")
+	s.T().Log("Attempting 5 rapid submissions")
 
 	for i := 0; i < 5; i++ {
-		if s.submitOnce(conn, jobID, serverNonce, i) {
+		errMsg := s.submitOnce(conn, jobID, serverNonce, i)
+		if errMsg == "" {
 			accepted++
 			s.T().Logf("  Attempt %d: ACCEPTED", i+1)
 			continue
 		}
 
 		rejected++
-		s.T().Logf("  Attempt %d: REJECTED", i+1)
+		s.T().Logf("  Attempt %d: REJECTED - %s", i+1, errMsg)
+		s.Equal(apperrors.ErrSubmissionFrequent.Error(), errMsg)
+
+		if i < 4 {
+			time.Sleep(200 * time.Millisecond)
+		}
 	}
 
 	return accepted, rejected
 }
 
-func (s *RateLimitSuite) submitOnce(conn transport.Connection, jobID int64, serverNonce string, attempt int) bool {
+func (s *RateLimitSuite) submitOnce(conn transport.Connection, jobID int64, serverNonce string, attempt int) string {
 	nonce := fmt.Sprintf("nonce-%d-%d", time.Now().UnixNano(), attempt)
 	result := hash.SHA256(serverNonce + nonce)
 
@@ -107,10 +127,6 @@ func (s *RateLimitSuite) submitOnce(conn transport.Connection, jobID int64, serv
 
 	s.Require().NoError(conn.Write(submitMsg))
 
-	resp, err := conn.Read()
-	s.Require().NoError(err)
-
-	time.Sleep(200 * time.Millisecond)
-
-	return resp.Error == ""
+	resp := s.readResponse(conn)
+	return resp.Error
 }

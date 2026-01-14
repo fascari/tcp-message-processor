@@ -13,7 +13,7 @@ func TestSession_UpdateJob(t *testing.T) {
 	session.UpdateJob(1, "nonce1")
 
 	require.Equal(t, int64(1), session.CurrentJobID)
-	require.Equal(t, "nonce1", session.CurrentNonce)
+	require.Equal(t, "nonce1", session.CurrentNonce())
 	require.Equal(t, "nonce1", session.JobHistory[1])
 	require.False(t, session.NonceUpdatedAt.IsZero())
 }
