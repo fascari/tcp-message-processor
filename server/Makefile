@@ -1,21 +1,22 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help run-local down test lint clean stop-servers
+.PHONY: help run-local down test test-integration lint clean stop-servers
 
 help:
 	@echo "TCP MESSAGE PROCESSOR - MAKEFILE"
 	@echo ""
 	@echo "DEVELOPMENT:"
-	@echo " run-local       Start dependencies and run server locally"
-	@echo " down            Stop all dependencies"
-	@echo " stop-servers    Kill all running server processes"
+	@echo " run-local        Start dependencies and run server locally"
+	@echo " down             Stop all dependencies"
+	@echo " stop-servers     Kill all running server processes"
 	@echo ""
 	@echo "TESTING & QUALITY:"
-	@echo " test            Run all tests"
-	@echo " lint            Run golangci-lint"
+	@echo " test             Run all tests"
+	@echo " test-integration Run integration tests"
+	@echo " lint             Run golangci-lint"
 	@echo ""
 	@echo "UTILS:"
-	@echo " clean           Remove build artifacts and logs"
+	@echo " clean            Remove build artifacts and logs"
 
 run-local: stop-servers
 	@echo "Starting dependencies..."
@@ -32,6 +33,10 @@ down:
 test:
 	@echo "Running all tests..."
 	@go test -v -race ./...
+
+test-integration:
+	@echo "Running integration tests..."
+	@go test -tags=integration -v ./...
 
 lint:
 	@echo "Running golangci-lint..."
