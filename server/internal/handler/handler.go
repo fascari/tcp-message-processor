@@ -8,23 +8,71 @@ import (
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/common/pkg/method"
 	"tcp-message-processor/common/pkg/tcp"
+	"tcp-message-processor/internal/broadcaster"
+	"tcp-message-processor/internal/events"
+	"tcp-message-processor/internal/session"
 
 	"go.uber.org/zap"
 )
 
-func (s *Server) Handle(ctx context.Context, conn net.Conn) {
+//go:generate mockery --all
+
+type (
+	Handler interface {
+		Handle(ctx context.Context, conn net.Conn)
+		Start()
+		Stop()
+	}
+
+	SessionRepository interface {
+		Create(username string) *session.Session
+		Find(username string) (*session.Session, bool)
+		All() []*session.Session
+	}
+
+	Publisher interface {
+		Publish(ctx context.Context, event events.Submission) error
+	}
+
+	handler struct {
+		sessions    SessionRepository
+		publisher   Publisher
+		broadcaster broadcaster.Broadcaster
+	}
+)
+
+func New(sessions SessionRepository, publisher Publisher, broadcastInterval int) Handler {
+	return &handler{
+		sessions:    sessions,
+		publisher:   publisher,
+		broadcaster: broadcaster.New(sessions, broadcastInterval),
+	}
+}
+
+func (h *handler) Start() {
+	h.broadcaster.Start()
+}
+
+func (h *handler) Stop() {
+	h.broadcaster.Stop()
+}
+
+func (h *handler) Handle(ctx context.Context, conn net.Conn) {
 	defer closer.Close(conn, "failed to close connection")
 
+	logger.Info("new connection accepted", zap.String("remote_addr", conn.RemoteAddr().String()))
+
+	tcpConn := tcp.NewConn(conn)
 	var username string
 	defer func() {
 		if username != "" {
-			s.broadcaster.Unregister(username)
+			h.broadcaster.Unregister(username)
 			logger.Info("client disconnected", zap.String("username", username))
 		}
 	}()
 
 	for {
-		msg, err := tcp.ReadMessage(conn)
+		msg, err := tcpConn.Read()
 		if err != nil {
 			if username != "" {
 				logger.Warn("failed to read message", zap.Error(err), zap.String("username", username))
@@ -36,26 +84,26 @@ func (s *Server) Handle(ctx context.Context, conn net.Conn) {
 			continue
 		}
 
-		if s.processMessage(ctx, conn, msg, &username) {
+		if h.processMessage(ctx, tcpConn, msg, &username) {
 			return
 		}
 	}
 }
 
-func (s *Server) processMessage(ctx context.Context, conn net.Conn, msg tcp.Message, username *string) bool {
+func (h *handler) processMessage(ctx context.Context, conn *tcp.Conn, msg tcp.Message, username *string) bool {
 	switch method.Method(msg.Method) {
 	case method.Authorize:
-		return s.handleAuthorizeMessage(ctx, conn, msg, username)
+		return h.handleAuthorizeMessage(conn, msg, username)
 	case method.Submit:
-		return s.handleSubmitMessage(ctx, conn, msg, *username)
+		return h.handleSubmitMessage(ctx, conn, msg, *username)
 	default:
-		s.sendError(conn, *msg.ID, "unknown method")
+		h.sendError(conn, *msg.ID, "unknown method")
 		return false
 	}
 }
 
-func (s *Server) handleAuthorizeMessage(ctx context.Context, conn net.Conn, msg tcp.Message, username *string) bool {
-	user, err := s.authorize(ctx, conn, msg)
+func (h *handler) handleAuthorizeMessage(conn *tcp.Conn, msg tcp.Message, username *string) bool {
+	user, err := h.authorize(conn, msg)
 	if err != nil {
 		logger.Error("authorization failed", zap.Error(err))
 		return true
@@ -64,18 +112,18 @@ func (s *Server) handleAuthorizeMessage(ctx context.Context, conn net.Conn, msg 
 	return false
 }
 
-func (s *Server) handleSubmitMessage(ctx context.Context, conn net.Conn, msg tcp.Message, username string) bool {
+func (h *handler) handleSubmitMessage(ctx context.Context, conn *tcp.Conn, msg tcp.Message, username string) bool {
 	if username == "" {
-		s.sendError(conn, *msg.ID, "unauthorized")
+		h.sendError(conn, *msg.ID, "unauthorized")
 		return true
 	}
-	s.submit(ctx, conn, msg, username)
+	h.submit(ctx, conn, msg, username)
 	return false
 }
 
-func (*Server) sendError(conn net.Conn, id int64, errMsg string) {
-	response := tcp.NewErrorResponse(id, errMsg)
-	if err := tcp.WriteMessage(conn, response); err != nil {
+func (*handler) sendError(conn *tcp.Conn, id int64, errMsg string) {
+	response := tcp.ErrorResponse(id, errMsg)
+	if err := conn.Write(&response); err != nil {
 		logger.Error("failed to send error response", zap.Error(err))
 	}
 }

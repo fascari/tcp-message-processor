@@ -15,15 +15,15 @@ import (
 	"go.uber.org/zap"
 )
 
-func initDatabase(cfg config.DatabaseConfig) (stats.Store, error) {
+func initDatabase(cfg config.DatabaseConfig) (*stats.Store, error) {
 	db, err := database.New(cfg)
 	if err != nil {
-		return stats.Store{}, fmt.Errorf("failed to initialize database: %w", err)
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 	return stats.NewStore(db), nil
 }
 
-func initMessaging(cfg config.RabbitMQConfig, statsStore stats.Store) (*publisher.Publisher, *consumer.Consumer, error) {
+func initMessaging(cfg config.RabbitMQConfig, statsStore *stats.Store) (*publisher.Publisher, *consumer.Consumer, error) {
 	pub, err := publisher.New(cfg)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to initialize publisher: %w", err)

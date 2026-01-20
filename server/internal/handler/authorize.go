@@ -1,9 +1,7 @@
 package handler
 
 import (
-	"context"
 	"errors"
-	"net"
 
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/common/pkg/tcp"
@@ -11,18 +9,18 @@ import (
 	"go.uber.org/zap"
 )
 
-func (s *Server) authorize(_ context.Context, conn net.Conn, msg tcp.Message) (string, error) {
+func (h *handler) authorize(conn *tcp.Conn, msg tcp.Message) (string, error) {
 	username, ok := msg.Params["username"].(string)
 	if !ok || username == "" {
-		s.sendError(conn, *msg.ID, "invalid username")
+		h.sendError(conn, *msg.ID, "invalid username")
 		return "", errors.New("invalid username in params")
 	}
 
-	s.sessions.Create(username)
-	s.broadcaster.Register(username, conn)
+	h.sessions.Create(username)
+	h.broadcaster.Register(username, conn)
 
-	response := tcp.NewSuccessResponse(*msg.ID, true)
-	if err := tcp.WriteMessage(conn, response); err != nil {
+	response := tcp.SuccessResponse(*msg.ID, true)
+	if err := conn.Write(&response); err != nil {
 		return "", err
 	}
 

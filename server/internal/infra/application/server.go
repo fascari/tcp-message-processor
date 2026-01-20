@@ -17,7 +17,7 @@ import (
 type Server struct {
 	cfg       config.Config
 	listener  net.Listener
-	handler   *handler.Server
+	handler   handler.Handler
 	consumer  *consumer.Consumer
 	publisher *publisher.Publisher
 	ctx       context.Context
