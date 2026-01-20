@@ -4,7 +4,6 @@ package stats
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -37,7 +36,7 @@ func (s *StatsTestSuite) SetupTest() {
 	s.Require().NoError(err)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_create_new_record_when_not_exists() {
+func (s *StatsTestSuite) TestIncrement_CreatesNewRecord() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -51,7 +50,7 @@ func (s *StatsTestSuite) TestIncrement_should_create_new_record_when_not_exists(
 	s.Require().Equal(1, count)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_increment_existing_record() {
+func (s *StatsTestSuite) TestIncrement_IncrementsExistingRecord() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -68,7 +67,7 @@ func (s *StatsTestSuite) TestIncrement_should_increment_existing_record() {
 	s.Require().Equal(2, count)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_truncate_to_minute() {
+func (s *StatsTestSuite) TestIncrement_TruncatesTimestampToMinute() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -87,7 +86,7 @@ func (s *StatsTestSuite) TestIncrement_should_truncate_to_minute() {
 	s.Require().Equal(2, count)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_handle_concurrent_writes() {
+func (s *StatsTestSuite) TestIncrement_HandlesConcurrentWrites() {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -95,23 +94,17 @@ func (s *StatsTestSuite) TestIncrement_should_handle_concurrent_writes() {
 	timestamp := time.Now()
 	concurrency := 10
 
-	var wg sync.WaitGroup
 	errChan := make(chan error, concurrency)
 
 	for i := 0; i < concurrency; i++ {
-		wg.Add(1)
 		go func() {
-			defer wg.Done()
-			if err := s.store.Increment(ctx, username, timestamp); err != nil {
-				errChan <- err
-			}
+			err := s.store.Increment(ctx, username, timestamp)
+			errChan <- err
 		}()
 	}
 
-	wg.Wait()
-	close(errChan)
-
-	for err := range errChan {
+	for i := 0; i < concurrency; i++ {
+		err := <-errChan
 		s.Require().NoError(err)
 	}
 
@@ -119,7 +112,7 @@ func (s *StatsTestSuite) TestIncrement_should_handle_concurrent_writes() {
 	s.Require().Equal(concurrency, count)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_separate_different_users() {
+func (s *StatsTestSuite) TestIncrement_SeparatesDifferentUsers() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -138,7 +131,7 @@ func (s *StatsTestSuite) TestIncrement_should_separate_different_users() {
 	s.Require().Equal(1, count2)
 }
 
-func (s *StatsTestSuite) TestIncrement_should_separate_different_minutes() {
+func (s *StatsTestSuite) TestIncrement_SeparatesDifferentMinutes() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
