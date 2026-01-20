@@ -4,7 +4,7 @@ package mocks
 
 import (
 	context "context"
-	handler "tcp-message-processor/internal/handler"
+	events "tcp-message-processor/internal/events"
 
 	mock "github.com/stretchr/testify/mock"
 )
@@ -23,7 +23,7 @@ func (_m *Publisher) EXPECT() *Publisher_Expecter {
 }
 
 // Publish provides a mock function with given fields: ctx, event
-func (_m *Publisher) Publish(ctx context.Context, event handler.Event) error {
+func (_m *Publisher) Publish(ctx context.Context, event events.Submission) error {
 	ret := _m.Called(ctx, event)
 
 	if len(ret) == 0 {
@@ -31,7 +31,7 @@ func (_m *Publisher) Publish(ctx context.Context, event handler.Event) error {
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, handler.Event) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, events.Submission) error); ok {
 		r0 = rf(ctx, event)
 	} else {
 		r0 = ret.Error(0)
@@ -47,14 +47,14 @@ type Publisher_Publish_Call struct {
 
 // Publish is a helper method to define mock.On call
 //   - ctx context.Context
-//   - event handler.Event
+//   - event events.Submission
 func (_e *Publisher_Expecter) Publish(ctx interface{}, event interface{}) *Publisher_Publish_Call {
 	return &Publisher_Publish_Call{Call: _e.mock.On("Publish", ctx, event)}
 }
 
-func (_c *Publisher_Publish_Call) Run(run func(ctx context.Context, event handler.Event)) *Publisher_Publish_Call {
+func (_c *Publisher_Publish_Call) Run(run func(ctx context.Context, event events.Submission)) *Publisher_Publish_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(handler.Event))
+		run(args[0].(context.Context), args[1].(events.Submission))
 	})
 	return _c
 }
@@ -64,7 +64,7 @@ func (_c *Publisher_Publish_Call) Return(_a0 error) *Publisher_Publish_Call {
 	return _c
 }
 
-func (_c *Publisher_Publish_Call) RunAndReturn(run func(context.Context, handler.Event) error) *Publisher_Publish_Call {
+func (_c *Publisher_Publish_Call) RunAndReturn(run func(context.Context, events.Submission) error) *Publisher_Publish_Call {
 	_c.Call.Return(run)
 	return _c
 }

@@ -2,7 +2,6 @@ package handler_test
 
 import (
 	"context"
-	"net"
 	"testing"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 	"tcp-message-processor/common/pkg/hash"
 	"tcp-message-processor/common/pkg/noncegen"
 	"tcp-message-processor/common/pkg/tcp"
-	"tcp-message-processor/internal/handler"
+	handlerpkg "tcp-message-processor/internal/handler"
 	"tcp-message-processor/internal/handler/mocks"
 	"tcp-message-processor/internal/session"
 
@@ -18,7 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupHandlerWithConnection(t *testing.T) (server *handler.Server, serverConn net.Conn, clientConn net.Conn) {
+func setupHandlerWithConnection(t *testing.T) (handler handlerpkg.Handler, serverConn *tcp.Conn, clientConn *tcp.Conn) {
 	sessions := session.NewStore()
 	publisher := mocks.NewPublisher(t)
 	publisher.EXPECT().Publish(
@@ -26,28 +25,29 @@ func setupHandlerWithConnection(t *testing.T) (server *handler.Server, serverCon
 		mock.Anything,
 	).Return(nil).Maybe()
 
-	h := handler.New(sessions, publisher, 1)
+	h := handlerpkg.New(sessions, publisher, 1)
 
-	serverConn, clientConn = net.Pipe()
+	serverConn, clientConn, cleanup := tcp.NewPipe()
+	t.Cleanup(cleanup)
 
 	ctx := context.Background()
-	go h.Handle(ctx, serverConn)
+	go h.Handle(ctx, serverConn.Conn())
 
 	return h, serverConn, clientConn
 }
 
-func authenticate(t *testing.T, conn net.Conn, username string) {
+func authenticate(t *testing.T, tcpConn *tcp.Conn, username string) {
 	authMsg := tcp.AuthorizeParams{Username: username}.ToMessage(1)
-	require.NoError(t, tcp.WriteMessage(conn, &authMsg))
+	require.NoError(t, tcpConn.Write(&authMsg))
 
-	response, err := tcp.ReadMessage(conn)
+	response, err := tcpConn.Read()
 	require.NoError(t, err)
 	require.Empty(t, response.Error)
 	require.True(t, response.Result.(bool))
 }
 
-func waitForJob(t *testing.T, conn net.Conn) (int64, string) {
-	jobMsg, err := tcp.ReadMessage(conn)
+func waitForJob(t *testing.T, tcpConn *tcp.Conn) (int64, string) {
+	jobMsg, err := tcpConn.Read()
 	require.NoError(t, err)
 	require.True(t, jobMsg.IsJob())
 
@@ -57,9 +57,9 @@ func waitForJob(t *testing.T, conn net.Conn) (int64, string) {
 	return jobID, serverNonce
 }
 
-func readResponse(t *testing.T, conn net.Conn) tcp.Message {
+func readResponse(t *testing.T, conn *tcp.Conn) tcp.Message {
 	for {
-		msg, err := tcp.ReadMessage(conn)
+		msg, err := conn.Read()
 		require.NoError(t, err)
 
 		if msg.IsJob() {
@@ -70,18 +70,18 @@ func readResponse(t *testing.T, conn net.Conn) tcp.Message {
 	}
 }
 
-func submitAndReadResponse(t *testing.T, conn net.Conn, jobID int64, clientNonce, result string, msgID int64) tcp.Message {
+func submitAndReadResponse(t *testing.T, tcpConn *tcp.Conn, jobID int64, clientNonce, result string, msgID int64) tcp.Message {
 	submitMsg := tcp.SubmitParams{
 		JobID:       jobID,
 		ClientNonce: clientNonce,
 		Result:      result,
 	}.ToMessage(msgID)
 
-	require.NoError(t, tcp.WriteMessage(conn, &submitMsg))
-	return readResponse(t, conn)
+	require.NoError(t, tcpConn.Write(&submitMsg))
+	return readResponse(t, tcpConn)
 }
 
-func setupTest(t *testing.T) net.Conn {
+func setupTest(t *testing.T) *tcp.Conn {
 	h, _, clientConn := setupHandlerWithConnection(t)
 	t.Cleanup(func() {
 		closer.Close(clientConn, "close client connection")
