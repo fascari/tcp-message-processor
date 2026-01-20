@@ -9,24 +9,29 @@ import (
 	"tcp-message-processor/common/pkg/closer"
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/internal/config"
-	"tcp-message-processor/internal/handler"
-	"tcp-message-processor/internal/stats"
+	"tcp-message-processor/internal/events"
 	"tcp-message-processor/pkg/broker"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 	"go.uber.org/zap"
 )
 
-type Consumer struct {
-	conn     *amqp.Connection
-	channel  *amqp.Channel
-	queue    string
-	store    stats.Store
-	stopChan chan struct{}
-	doneChan chan struct{}
-}
+type (
+	Repository interface {
+		Increment(ctx context.Context, username string, timestamp time.Time) error
+	}
 
-func New(cfg config.RabbitMQConfig, store stats.Store) (*Consumer, error) {
+	Consumer struct {
+		conn     *amqp.Connection
+		channel  *amqp.Channel
+		queue    string
+		store    Repository
+		stopChan chan struct{}
+		doneChan chan struct{}
+	}
+)
+
+func New(cfg config.RabbitMQConfig, store Repository) (*Consumer, error) {
 	setup, err := broker.Consumer(broker.ConsumerConfig{
 		URL:        cfg.URL,
 		Exchange:   cfg.Exchange,
@@ -120,7 +125,7 @@ func (c Consumer) processMessage(ctx context.Context, msg amqp.Delivery) error {
 	return nil
 }
 
-func (c Consumer) saveStatistics(ctx context.Context, event handler.Event) error {
+func (c Consumer) saveStatistics(ctx context.Context, event events.Submission) error {
 	truncatedTime := event.Timestamp.Truncate(time.Minute)
 
 	if err := c.store.Increment(ctx, event.Username, truncatedTime); err != nil {
@@ -146,10 +151,10 @@ func (c Consumer) Stop() error {
 	return nil
 }
 
-func unmarshalEvent(body []byte) (handler.Event, error) {
-	var event handler.Event
+func unmarshalEvent(body []byte) (events.Submission, error) {
+	var event events.Submission
 	if err := json.Unmarshal(body, &event); err != nil {
-		return handler.Event{}, fmt.Errorf("failed to unmarshal event: %w", err)
+		return events.Submission{}, fmt.Errorf("failed to unmarshal event: %w", err)
 	}
 	return event, nil
 }

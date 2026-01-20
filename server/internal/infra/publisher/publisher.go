@@ -8,7 +8,7 @@ import (
 	"tcp-message-processor/common/pkg/closer"
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/internal/config"
-	"tcp-message-processor/internal/handler"
+	"tcp-message-processor/internal/events"
 	"tcp-message-processor/pkg/broker"
 
 	amqp "github.com/rabbitmq/amqp091-go"
@@ -39,7 +39,7 @@ func New(cfg config.RabbitMQConfig) (*Publisher, error) {
 	}, nil
 }
 
-func (p Publisher) Publish(ctx context.Context, event handler.Event) error {
+func (p Publisher) Publish(ctx context.Context, event events.Submission) error {
 	body, err := marshal(event)
 	if err != nil {
 		return err
@@ -74,7 +74,7 @@ func (p Publisher) Close() error {
 	return nil
 }
 
-func marshal(event handler.Event) ([]byte, error) {
+func marshal(event events.Submission) ([]byte, error) {
 	body, err := json.Marshal(event)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal event: %w", err)
