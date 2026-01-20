@@ -5,13 +5,13 @@ import (
 	"time"
 )
 
-// Delay returns a random duration between min and max (inclusive).
-// If min equals max, returns min.
-func Delay(min, max time.Duration) time.Duration {
-	if min == max {
-		return min
+// Delay returns a random duration between minDelay and maxDelay (inclusive).
+// If minDelay equals maxDelay, returns minDelay.
+func Delay(minDelay, maxDelay time.Duration) time.Duration {
+	if minDelay == maxDelay {
+		return minDelay
 	}
 
-	diff := max - min
-	return min + time.Duration(rand.Int64N(int64(diff)))
+	diff := maxDelay - minDelay
+	return minDelay + time.Duration(rand.Int64N(int64(diff)))
 }

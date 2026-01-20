@@ -11,33 +11,33 @@ import (
 
 func TestDelay(t *testing.T) {
 	t.Run("should return min when min equals max", func(t *testing.T) {
-		min := 5 * time.Second
-		max := 5 * time.Second
+		minDelay := 5 * time.Second
+		maxDelay := 5 * time.Second
 
-		result := random.Delay(min, max)
-		require.Equal(t, min, result)
+		result := random.Delay(minDelay, maxDelay)
+		require.Equal(t, minDelay, result)
 	})
 
 	t.Run("should return value between min and max", func(t *testing.T) {
-		min := 1 * time.Second
-		max := 10 * time.Second
+		minDelay := 1 * time.Second
+		maxDelay := 10 * time.Second
 
 		for i := 0; i < 100; i++ {
-			result := random.Delay(min, max)
-			require.GreaterOrEqual(t, result, min)
-			require.LessOrEqual(t, result, max)
+			result := random.Delay(minDelay, maxDelay)
+			require.GreaterOrEqual(t, result, minDelay)
+			require.LessOrEqual(t, result, maxDelay)
 		}
 	})
 
 	t.Run("should generate different delays", func(t *testing.T) {
-		min := 1 * time.Second
-		max := 60 * time.Second
+		minDelay := 1 * time.Second
+		maxDelay := 60 * time.Second
 
 		seen := make(map[time.Duration]bool)
 		iterations := 50
 
 		for i := 0; i < iterations; i++ {
-			result := random.Delay(min, max)
+			result := random.Delay(minDelay, maxDelay)
 			seen[result] = true
 		}
 
@@ -45,19 +45,19 @@ func TestDelay(t *testing.T) {
 	})
 
 	t.Run("should handle zero duration", func(t *testing.T) {
-		min := 0 * time.Second
-		max := 0 * time.Second
+		minDelay := 0 * time.Second
+		maxDelay := 0 * time.Second
 
-		result := random.Delay(min, max)
+		result := random.Delay(minDelay, maxDelay)
 		require.Equal(t, time.Duration(0), result)
 	})
 
 	t.Run("should handle milliseconds", func(t *testing.T) {
-		min := 100 * time.Millisecond
-		max := 200 * time.Millisecond
+		minDelay := 100 * time.Millisecond
+		maxDelay := 200 * time.Millisecond
 
-		result := random.Delay(min, max)
-		require.GreaterOrEqual(t, result, min)
-		require.LessOrEqual(t, result, max)
+		result := random.Delay(minDelay, maxDelay)
+		require.GreaterOrEqual(t, result, minDelay)
+		require.LessOrEqual(t, result, maxDelay)
 	})
 }
