@@ -90,38 +90,6 @@ Client includes automated integration tests using **Testcontainers**:
 - Make (optional)
 - golangci-lint (for linting)
 
-
-## Project Structure
-
-```
-.
-├── go.work                 # Go workspace configuration
-├── docker-compose.yml      # Infrastructure (Postgres + RabbitMQ)
-├── README.md              # This file
-│
-├── common/                # Shared code
-│   └── pkg/
-│       ├── closer/        # Resource cleanup utility
-│       ├── env/           # Environment variable helpers
-│       ├── errlog/        # Conditional error logging
-│       ├── hash/          # SHA256
-│       ├── logger/        # Structured logger (zap)
-│       ├── noncegen/      # Nonce generation
-│       ├── random/        # Random delay
-│       └── tcp/           # TCP message protocol
-│
-├── server/                # TCP Server
-│   ├── cmd/server/        # Entry point
-│   ├── internal/          # Server logic
-│   └── README.md          # Server-specific documentation
-│
-└── client/                # TCP Client
-    ├── cmd/client/        # Entry point
-    ├── internal/          # Client logic
-    ├── test/integration/  # Integration tests with Testcontainers
-    └── README.md          # Client-specific documentation
-```
-
 ## Quick Start
 
 ### 1. Start Infrastructure
