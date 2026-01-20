@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"tcp-message-processor-client/internal/transport"
 	"tcp-message-processor/common/pkg/hash"
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/common/pkg/noncegen"
@@ -28,7 +27,7 @@ func New(minSeconds, maxSeconds int) Submitter {
 	}
 }
 
-func (s *Submitter) Submit(conn transport.Messenger, jobID int64, serverNonce string) error {
+func (s *Submitter) Submit(conn *tcp.Conn, jobID int64, serverNonce string) error {
 	delay := random.Delay(s.minDelay, s.maxDelay)
 	time.Sleep(delay)
 
@@ -45,7 +44,7 @@ func (s *Submitter) Submit(conn transport.Messenger, jobID int64, serverNonce st
 	}
 	msg := params.ToMessage(id)
 
-	if err := conn.Write(msg); err != nil {
+	if err := conn.Write(&msg); err != nil {
 		return fmt.Errorf("failed to send submit request: %w", err)
 	}
 

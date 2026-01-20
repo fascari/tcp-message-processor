@@ -3,7 +3,6 @@ package auth
 import (
 	"fmt"
 
-	"tcp-message-processor-client/internal/transport"
 	"tcp-message-processor/common/pkg/logger"
 	"tcp-message-processor/common/pkg/tcp"
 
@@ -22,14 +21,14 @@ func New(username string) Authenticator {
 	return Authenticator{username: username}
 }
 
-func (a *Authenticator) Authorize(conn transport.Messenger) error {
+func (a *Authenticator) Authorize(conn *tcp.Conn) error {
 	id := int64(1)
 	params := tcp.AuthorizeParams{
 		Username: a.username,
 	}
 	msg := params.ToMessage(id)
 
-	if err := conn.Write(msg); err != nil {
+	if err := conn.Write(&msg); err != nil {
 		return fmt.Errorf("failed to send authorize request: %w", err)
 	}
 
