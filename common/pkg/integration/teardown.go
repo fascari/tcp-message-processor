@@ -1,6 +1,10 @@
 package integration
 
 import (
+	"context"
+	"syscall"
+	"time"
+
 	"tcp-message-processor/common/pkg/errlog"
 )
 
@@ -9,8 +13,32 @@ func (s *Suite) stopServer() {
 		return
 	}
 
-	errlog.Log(s.serverCmd.Process.Kill(), "failed to kill server process")
-	errlog.Debug(s.serverCmd.Wait(), "server process wait error")
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	if err := s.signalProcessGroup(syscall.SIGTERM); err != nil {
+		errlog.Log(err, "failed to send SIGTERM")
+	}
+
+	done := make(chan error, 1)
+	go func() {
+		done <- s.serverCmd.Wait()
+	}()
+
+	select {
+	case <-done:
+		return
+	case <-ctx.Done():
+		if err := s.signalProcessGroup(syscall.SIGKILL); err != nil {
+			errlog.Log(err, "failed to send SIGKILL")
+		}
+		<-done
+	}
+}
+
+func (s *Suite) signalProcessGroup(sig syscall.Signal) error {
+	pgid := s.serverCmd.Process.Pid
+	return syscall.Kill(-pgid, sig)
 }
 
 func (s *Suite) stopContainers() {
