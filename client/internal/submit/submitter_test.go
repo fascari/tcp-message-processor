@@ -1,61 +1,73 @@
 package submit
 
 import (
-	"errors"
 	"testing"
 
-	"tcp-message-processor-client/internal/transport/mocks"
 	"tcp-message-processor/common/pkg/tcp"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
+func newSubmitPipe(t *testing.T) (client *tcp.Conn, server *tcp.Conn) {
+	t.Helper()
+
+	c1, c2, cleanup := tcp.NewPipe()
+	t.Cleanup(cleanup)
+
+	return c1, c2
+}
+
 func TestSubmit_Success(t *testing.T) {
-	mockConn := mocks.NewMessenger(t)
+	client, server := newSubmitPipe(t)
 	submitter := New(0, 0)
 
-	mockConn.EXPECT().Write(mock.Anything).Return(nil).Once()
-	mockConn.EXPECT().Read().Return(tcp.Message{Result: true}, nil).Once()
+	go func() {
+		_, _ = server.Read() // consume request
+		_ = server.Write(&tcp.Message{Result: true})
+	}()
 
-	err := submitter.Submit(mockConn, 123, "nonce")
+	err := submitter.Submit(client, 123, "nonce")
 
 	require.NoError(t, err)
 }
 
 func TestSubmit_WriteError(t *testing.T) {
-	mockConn := mocks.NewMessenger(t)
+	client, server := newSubmitPipe(t)
 	submitter := New(0, 0)
 
-	mockConn.EXPECT().Write(mock.Anything).Return(errors.New("write failed")).Once()
+	_ = server.Close()
 
-	err := submitter.Submit(mockConn, 123, "nonce")
+	err := submitter.Submit(client, 123, "nonce")
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to send submit request")
 }
 
 func TestSubmit_ReadError(t *testing.T) {
-	mockConn := mocks.NewMessenger(t)
+	client, server := newSubmitPipe(t)
 	submitter := New(0, 0)
 
-	mockConn.EXPECT().Write(mock.Anything).Return(nil).Once()
-	mockConn.EXPECT().Read().Return(tcp.Message{}, errors.New("read failed")).Once()
+	go func() {
+		_, _ = server.Read()
+		_ = server.Close()
+	}()
 
-	err := submitter.Submit(mockConn, 123, "nonce")
+	err := submitter.Submit(client, 123, "nonce")
 
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to read submit response")
 }
 
 func TestSubmit_ServerRejection(t *testing.T) {
-	mockConn := mocks.NewMessenger(t)
+	client, server := newSubmitPipe(t)
 	submitter := New(0, 0)
 
-	mockConn.EXPECT().Write(mock.Anything).Return(nil).Once()
-	mockConn.EXPECT().Read().Return(tcp.Message{Error: "rate limit exceeded"}, nil).Once()
+	go func() {
+		_, _ = server.Read()
+		_ = server.Write(&tcp.Message{Error: "rate limit exceeded"})
+	}()
 
-	err := submitter.Submit(mockConn, 123, "nonce")
+	err := submitter.Submit(client, 123, "nonce")
 
 	require.NoError(t, err)
 }
