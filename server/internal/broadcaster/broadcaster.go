@@ -1,7 +1,6 @@
 package broadcaster
 
 import (
-	"net"
 	"sync"
 	"time"
 
@@ -13,20 +12,27 @@ import (
 	"go.uber.org/zap"
 )
 
-type Broadcaster struct {
-	mu                sync.RWMutex
-	clients           map[string]net.Conn
-	jobID             int64
-	srvNonce          string
-	ticker            *time.Ticker
-	stopChan          chan struct{}
-	sessions          *session.Store
-	broadcastInterval time.Duration
-}
+type (
+	SessionRepository interface {
+		All() []*session.Session
+		Find(username string) (*session.Session, bool)
+	}
 
-func New(sessions *session.Store, intervalSeconds int) Broadcaster {
+	Broadcaster struct {
+		mu                sync.RWMutex
+		clients           map[string]*tcp.Conn
+		jobID             int64
+		srvNonce          string
+		ticker            *time.Ticker
+		stopChan          chan struct{}
+		sessions          SessionRepository
+		broadcastInterval time.Duration
+	}
+)
+
+func New(sessions SessionRepository, intervalSeconds int) Broadcaster {
 	return Broadcaster{
-		clients:           make(map[string]net.Conn),
+		clients:           make(map[string]*tcp.Conn),
 		jobID:             0,
 		srvNonce:          noncegen.Generate(),
 		stopChan:          make(chan struct{}),
@@ -35,7 +41,7 @@ func New(sessions *session.Store, intervalSeconds int) Broadcaster {
 	}
 }
 
-func (b *Broadcaster) Register(username string, conn net.Conn) {
+func (b *Broadcaster) Register(username string, conn *tcp.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -89,14 +95,14 @@ func (b *Broadcaster) broadcast() {
 	b.sendToClients(clients, msg, jobID, serverNonce)
 }
 
-func (b *Broadcaster) generateJob() (int64, string, map[string]net.Conn) {
+func (b *Broadcaster) generateJob() (int64, string, map[string]*tcp.Conn) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
 	b.jobID++
 	b.srvNonce = noncegen.Generate()
 
-	clients := make(map[string]net.Conn, len(b.clients))
+	clients := make(map[string]*tcp.Conn, len(b.clients))
 	for k, v := range b.clients {
 		clients[k] = v
 	}
@@ -112,13 +118,13 @@ func createJobMessage(jobID int64, nonce string) tcp.Message {
 	return params.ToMessage()
 }
 
-func (b *Broadcaster) sendToClients(clients map[string]net.Conn, msg tcp.Message, jobID int64, srvNonce string) {
+func (b *Broadcaster) sendToClients(clients map[string]*tcp.Conn, msg tcp.Message, jobID int64, srvNonce string) {
 	for username, conn := range clients {
 		b.sendToClient(username, conn, msg, jobID, srvNonce)
 	}
 }
 
-func (b *Broadcaster) sendToClient(username string, conn net.Conn, msg tcp.Message, jobID int64, srvNonce string) {
+func (b *Broadcaster) sendToClient(username string, tcpConn *tcp.Conn, msg tcp.Message, jobID int64, srvNonce string) {
 	sess, exists := b.sessions.Find(username)
 	if !exists {
 		return
@@ -126,7 +132,7 @@ func (b *Broadcaster) sendToClient(username string, conn net.Conn, msg tcp.Messa
 
 	sess.UpdateJob(jobID, srvNonce)
 
-	if err := tcp.WriteMessage(conn, &msg); err != nil {
+	if err := tcpConn.Write(&msg); err != nil {
 		logger.Error("failed to send job to client",
 			zap.Error(err),
 			zap.String("username", username),
