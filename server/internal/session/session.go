@@ -7,16 +7,25 @@ import (
 	"tcp-message-processor/pkg/ratelimit"
 )
 
-type Session struct {
-	mu             sync.RWMutex
-	Username       string
-	CurrentJobID   int64
-	currentNonce   string
-	NonceUpdatedAt time.Time
-	Submissions    map[string]time.Time
-	JobHistory     map[int64]string
-	limiter        *ratelimit.Limiter
-}
+type (
+	Session struct {
+		mu             sync.RWMutex
+		Username       string
+		CurrentJobID   int64
+		currentNonce   string
+		NonceUpdatedAt time.Time
+		Submissions    map[string]time.Time
+		JobHistory     map[int64]string
+		limiter        *ratelimit.Limiter
+	}
+
+	JobValidation struct {
+		Exists       bool
+		IsExpired    bool
+		NonceMatches bool
+		CurrentNonce string
+	}
+)
 
 func New(username string) *Session {
 	return &Session{
@@ -50,6 +59,20 @@ func (s *Session) IsDuplicateNonce(clientNonce string) bool {
 
 	_, exists := s.Submissions[clientNonce]
 	return exists
+}
+
+func (s *Session) ValidateJob(jobID int64) JobValidation {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	nonce, exists := s.JobHistory[jobID]
+
+	return JobValidation{
+		Exists:       exists,
+		IsExpired:    exists && jobID < s.CurrentJobID,
+		NonceMatches: exists && nonce == s.currentNonce,
+		CurrentNonce: s.currentNonce,
+	}
 }
 
 func (s *Session) ValidateJobNonce(jobID int64, expectedNonce string) bool {

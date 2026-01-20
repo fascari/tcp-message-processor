@@ -27,12 +27,13 @@ func NewSecondLimiter() *Limiter {
 
 func (l *Limiter) Allow(key string) bool {
 	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	limiter, exists := l.limiters[key]
 	if !exists {
 		limiter = rate.NewLimiter(l.rps, l.burst)
 		l.limiters[key] = limiter
 	}
-	l.mu.Unlock()
 
 	return limiter.Allow()
 }

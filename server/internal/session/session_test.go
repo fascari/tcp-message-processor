@@ -48,29 +48,47 @@ func TestSession_IsDuplicateNonce(t *testing.T) {
 	require.True(t, session.IsDuplicateNonce("nonce1"))
 }
 
-func TestSession_ValidateJobNonce(t *testing.T) {
+func TestSession_ValidateJob(t *testing.T) {
 	session := New("testuser")
 	session.UpdateJob(1, "server_nonce_1")
 
-	require.True(t, session.ValidateJobNonce(1, "server_nonce_1"))
-	require.False(t, session.ValidateJobNonce(1, "wrong_nonce"))
-	require.False(t, session.ValidateJobNonce(999, "server_nonce_1"))
+	validation := session.ValidateJob(1)
+	require.True(t, validation.Exists)
+	require.False(t, validation.IsExpired)
+	require.True(t, validation.NonceMatches)
+	require.Equal(t, "server_nonce_1", validation.CurrentNonce)
+
+	validation = session.ValidateJob(999)
+	require.False(t, validation.Exists)
 }
 
-func TestSession_IsJobExpired(t *testing.T) {
+func TestSession_JobExpiration(t *testing.T) {
 	session := New("testuser")
 
 	session.UpdateJob(1, "nonce1")
-	require.False(t, session.IsJobExpired(1), "should not be expired when job is current")
+	validation := session.ValidateJob(1)
+	require.False(t, validation.IsExpired, "should not be expired when job is current")
 
 	session.UpdateJob(2, "nonce2")
-	require.True(t, session.IsJobExpired(1), "should be expired when newer job exists")
-	require.False(t, session.IsJobExpired(2), "should not be expired when job is current")
+	validation = session.ValidateJob(1)
+	require.True(t, validation.IsExpired, "should be expired when newer job exists")
+
+	validation = session.ValidateJob(2)
+	require.False(t, validation.IsExpired, "should not be expired when job is current")
 
 	session.UpdateJob(5, "nonce5")
-	require.True(t, session.IsJobExpired(1), "should be expired when much newer job exists")
-	require.True(t, session.IsJobExpired(2), "should be expired when newer job exists")
-	require.False(t, session.IsJobExpired(5), "should not be expired when job is current")
-	require.False(t, session.IsJobExpired(999), "should not be expired when job is from future")
-	require.False(t, session.IsJobExpired(4), "should not be expired when job never existed")
+	validation = session.ValidateJob(1)
+	require.True(t, validation.IsExpired, "should be expired when much newer job exists")
+
+	validation = session.ValidateJob(2)
+	require.True(t, validation.IsExpired, "should be expired when newer job exists")
+
+	validation = session.ValidateJob(5)
+	require.False(t, validation.IsExpired, "should not be expired when job is current")
+
+	validation = session.ValidateJob(999)
+	require.False(t, validation.IsExpired, "should not be expired when job never existed")
+
+	validation = session.ValidateJob(4)
+	require.False(t, validation.IsExpired, "should not be expired when job never existed")
 }
