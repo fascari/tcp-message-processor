@@ -17,7 +17,7 @@ import (
 )
 
 type Client struct {
-	conn      transport.Connection
+	conn      *tcp.Conn
 	auth      auth.Authenticator
 	jobs      *jobs.Manager
 	submitter submit.Submitter
